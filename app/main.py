@@ -1,20 +1,18 @@
-from fastapi import FastAPI, Response, status,HTTPException
+from fastapi import FastAPI, Response, status,HTTPException, Depends
 from fastapi.params import Body
 from pydantic import BaseModel
 from typing import Optional
 from random import randrange
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from sqlalchemy.orm import Session
+from . import model,schemas
+from .database import base,get_db,engine
+
+model.base.metadata.create_all(bind=engine)
 
 app=FastAPI()
-my_post=[{"title":"title 1","content":"Content 1","id": randrange(0,100000000)},{"title":"title 2","content":"Content 2","id": randrange(0,100000000)}] #we are using this as database
-
-#specifies post fields
-class Post(BaseModel):
-    title:str
-    content: str
-    published: bool=True      #optional
-    # rating: Optional[int] = None    #optional
+# my_post=[{"title":"title 1","content":"Content 1","id": randrange(0,100000000)},{"title":"title 2","content":"Content 2","id": randrange(0,100000000)}] #we are using this as database
 
 while True: 
     try:
@@ -41,12 +39,19 @@ def find_idx(id):
 def root():       #async is totally optional but it is used where to handle multiple request simultaneously
     return ("This is my social media web server")
 
+@app.get("/sqlalchemy")
+def test_post(db:Session=Depends(get_db)):
+    post=db.query(model.Post).all()
+    return ({"data":post})
+
+
 #this is the feed of social media
 @app.get("/posts")
-def feed():
-    cursor.execute("SELECT * from posts") #to write a single line command we use "", but to write a multiple line command we use """ """"
-    posts=cursor.fetchall()
-    return({"feed": posts})
+def feed(db: Session=Depends(get_db)):
+    post=db.query(model.Post).all()
+    # cursor.execute("SELECT * from posts") #to write a single line command we use "", but to write a multiple line command we use """ """"
+    # posts=cursor.fetchall()
+    return({"feed": post})
 
 #we should have a field to post anything like title, content caption 
 #but here we simply writting body so there is no proper field maintained as a result everything that will be written will be involved here so we
@@ -67,11 +72,16 @@ def feed():
 #     print(my_post)
 #     return {"Response": "Post uploaded"}
 @app.post("/posts",status_code=status.HTTP_201_CREATED)
-def create(post:Post):
-    cursor.execute("""Insert into posts (title,content, published) values (%s,%s,%s) returning *""",
-                                            (post.title, post.content, post.published))   #prevents from sql injection if the user puts some command as title
-    new_post=cursor.fetchone()      #returning the last row because returning is used in the previous line. if returing is not used then it will return no result to fetch
-    conn.commit()         #ADDS INTO THE POSTGRESQL DATABASE 
+def create(post:schemas.postCreate,db:Session=Depends(get_db)):
+    # cursor.execute("""Insert into posts (title,content, published) values (%s,%s,%s) returning *""",
+    #                                         (post.title, post.content, post.published))   #prevents from sql injection if the user puts some command as title
+    # new_post=cursor.fetchone()      #returning the last row because returning is used in the previous line. if returing is not used then it will return no result to fetch
+    # conn.commit()         #ADDS INTO THE POSTGRESQL DATABASE 
+
+    new_post=model.Post(**post.dict())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
     return {"Response": new_post}
 
 @app.get("/posts/latest")
@@ -80,11 +90,11 @@ def latest_post():
 
 #getting a specific post
 @app.get("/posts/{id}")
-def get_post(id:int): #, response: Response):   # id:int----I want the id to be integer
-    cursor.execute("SELECT * FROM  posts WHERE id=(%s)",(str(id)))
-    post=cursor.fetchone()
+def get_post(id:int,db:Session=Depends(get_db)): #, response: Response):   # id:int----I want the id to be integer
+    # cursor.execute("SELECT * FROM  posts WHERE id=(%s)",(str(id)))
+    # post=cursor.fetchone()
+    post=db.query(model.Post).filter(model.Post.id==id).first()
     if not post:
-        
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Result not")
         # # response.status_code=404---- not used because we have to memorise all the error code for this approach
         # response.status_code=status.HTTP_404_NOT_FOUND
@@ -92,24 +102,31 @@ def get_post(id:int): #, response: Response):   # id:int----I want the id to be 
     return ({"data": post})
 
 @app.delete("/posts/{id}",status_code=status.HTTP_204_NO_CONTENT)
-def delete(id:int):
-    # idx=find_idx(id)
-    cursor.execute("DELETE FROM posts WHERE id=%s returning *",(str(id)))
-    del_post=cursor.fetchone()
-    conn.commit()
-    if del_post is None:
+def delete(id:int,db:Session=Depends(get_db)):
+    del_post=db.query(model.Post).filter(model.Post.id==id)
+
+    # # idx=find_idx(id)
+    # cursor.execute("DELETE FROM posts WHERE id=%s returning *",(str(id)))
+    # del_post=cursor.fetchone()
+    # conn.commit()
+    if del_post.first() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such post")
     # my_post.pop(idx)
+    del_post.delete()
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @app.put("/posts/{id}")
-def update(id:int, post:Post):
-    cursor.execute (("UPDATE posts SET title=%s,content=%s , published=%s WHERE id=%s returning*"),(post.title,post.content,post.published,(str(id))) )
-    updated_post=cursor.fetchone()
-    conn.commit()
-    if updated_post is None:
+def update(id:int, post:schemas.postCreate,db:Session=Depends(get_db)):
+    # cursor.execute (("UPDATE posts SET title=%s,content=%s , published=%s WHERE id=%s returning*"),(post.title,post.content,post.published,(str(id))) )
+    # updated_post=cursor.fetchone()
+    # conn.commit()
+    updated_post=db.query(model.Post).filter(model.Post.id==id)
+    if updated_post.first is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No such id exists")
-    # post_dict=post.dict()
-    # post_dict["id"]=id
-    # my_post[idx]=post_dict
+    updated_post.update(updated_post.dict())
+    db.commit()
+    ## post_dict=post.dict()
+    ## post_dict["id"]=id
+    ## my_post[idx]=post_dict
     return updated_post
