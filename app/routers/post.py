@@ -15,7 +15,7 @@ def root():       #async is totally optional but it is used where to handle mult
 
 #this is the feed of social media
 @router.get("/posts",response_model=List[schemas.response])
-def feed(db: Session=Depends(get_db)):
+def feed(db: Session=Depends(get_db),user_id:int=Depends(oauth.get_the_user)):
     post=db.query(model.Post).all()
     # cursor.execute("SELECT * from posts") #to write a single line command we use "", but to write a multiple line command we use """ """"
     # posts=cursor.fetchall()
@@ -40,12 +40,12 @@ def feed(db: Session=Depends(get_db)):
 #     print(my_post)
 #     return {"Response": "Post uploaded"}
 @router.post("/posts",status_code=status.HTTP_201_CREATED,response_model=schemas.response)
-def create(post:schemas.postCreate,db:Session=Depends(get_db),get_current_user :int =Depends(oauth.get_the_user)):
+def create(post:schemas.postCreate,db:Session=Depends(get_db),user_id:int=Depends(oauth.get_the_user)):
     # cursor.execute("""Insert into posts (title,content, published) values (%s,%s,%s) returning *""",
     #                                         (post.title, post.content, post.published))   #prevents from sql injection if the user puts some command as title
     # new_post=cursor.fetchone()      #returning the last row because returning is used in the previous line. if returing is not used then it will return no result to fetch
     # conn.commit()         #ADDS INTO THE POSTGRESQL DATABASE 
-
+    print (user_id)
     new_post=model.Post(**post.dict())
     db.add(new_post)
     db.commit()
@@ -58,7 +58,7 @@ def create(post:schemas.postCreate,db:Session=Depends(get_db),get_current_user :
 
 #getting a specific post
 @router.get("/posts/{id}",response_model=schemas.response)
-def get_post(id:int,db:Session=Depends(get_db)): #, response: Response):   # id:int----I want the id to be integer
+def get_post(id:int,db:Session=Depends(get_db),user_id:int=Depends(oauth.get_the_user)): #, response: Response):   # id:int----I want the id to be integer
     # cursor.execute("SELECT * FROM  posts WHERE id=(%s)",(str(id)))
     # post=cursor.fetchone()
     post=db.query(model.Post).filter(model.Post.id==id).first()
@@ -70,7 +70,7 @@ def get_post(id:int,db:Session=Depends(get_db)): #, response: Response):   # id:
     return (post)
 
 @router.delete("/posts/{id}",status_code=status.HTTP_204_NO_CONTENT)
-def delete(id:int,db:Session=Depends(get_db)):
+def delete(id:int,db:Session=Depends(get_db),user_id:int=Depends(oauth.get_the_user)):
     del_post=db.query(model.Post).filter(model.Post.id==id)
 
     # # idx=find_idx(id)
@@ -85,7 +85,7 @@ def delete(id:int,db:Session=Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.put("/posts/{id}")
-def update(id:int, post:schemas.postCreate,db:Session=Depends(get_db),response_model=schemas.response):
+def update(id:int, post:schemas.postCreate,db:Session=Depends(get_db),response_model=schemas.response,user_id:int=Depends(oauth.get_the_user)):
     # cursor.execute (("UPDATE posts SET title=%s,content=%s , published=%s WHERE id=%s returning*"),(post.title,post.content,post.published,(str(id))) )
     # updated_post=cursor.fetchone()
     # conn.commit()
