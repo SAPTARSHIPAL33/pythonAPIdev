@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from datetime import datetime
 #specifies post fields
 class Post(BaseModel):
     title:str
@@ -25,3 +26,8 @@ class userCreate(BaseModel):
 class createResponse(BaseModel):
     id:int
     email:EmailStr
+    created_at:datetime
+
+class userLogin(BaseModel):
+    email:EmailStr 
+    password: str
