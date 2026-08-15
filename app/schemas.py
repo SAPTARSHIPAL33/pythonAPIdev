@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from typing import Optional
 #specifies post fields
 class Post(BaseModel):
     title:str
@@ -31,3 +32,10 @@ class createResponse(BaseModel):
 class userLogin(BaseModel):
     email:EmailStr 
     password: str
+
+class Token(BaseModel):
+    access_token:str
+    token_type:str
+
+class TokenData(BaseModel):
+    id:Optional[str]=None

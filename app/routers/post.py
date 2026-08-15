@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Response, status,HTTPException, Depends,APIRouter
 from sqlalchemy.orm import Session
 from ..database import get_db, base
-from .. import model,utils,schemas
+from .. import model,utils,schemas,oauth
 from typing import List
 # from fastapi.params import Body
 
@@ -40,7 +40,7 @@ def feed(db: Session=Depends(get_db)):
 #     print(my_post)
 #     return {"Response": "Post uploaded"}
 @router.post("/posts",status_code=status.HTTP_201_CREATED,response_model=schemas.response)
-def create(post:schemas.postCreate,db:Session=Depends(get_db)):
+def create(post:schemas.postCreate,db:Session=Depends(get_db),get_current_user :int =Depends(oauth.get_the_user)):
     # cursor.execute("""Insert into posts (title,content, published) values (%s,%s,%s) returning *""",
     #                                         (post.title, post.content, post.published))   #prevents from sql injection if the user puts some command as title
     # new_post=cursor.fetchone()      #returning the last row because returning is used in the previous line. if returing is not used then it will return no result to fetch
