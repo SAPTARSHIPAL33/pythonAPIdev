@@ -2,7 +2,7 @@ from fastapi import FastAPI, Response, status,HTTPException, Depends,APIRouter
 from sqlalchemy.orm import Session
 from ..database import get_db, base
 from .. import model,utils,schemas,oauth
-from typing import List
+from typing import List, Optional
 # from fastapi.params import Body
 
 
@@ -15,8 +15,8 @@ def root():       #async is totally optional but it is used where to handle mult
 
 #this is the feed of social media
 @router.get("/posts",response_model=List[schemas.response])
-def feed(db: Session=Depends(get_db),user:int=Depends(oauth.get_the_user)):
-    post=db.query(model.Post).all()
+def feed(db: Session=Depends(get_db),user:int=Depends(oauth.get_the_user),limit:int=10,skip:int=0, search:Optional[str]=""):
+    post=db.query(model.Post).filter(model.Post.title.contains(search)).limit(limit).offset(skip).all()
     # cursor.execute("SELECT * from posts") #to write a single line command we use "", but to write a multiple line command we use """ """"
     # posts=cursor.fetchall()
     return(post)
@@ -39,14 +39,22 @@ def feed(db: Session=Depends(get_db),user:int=Depends(oauth.get_the_user)):
 #     # print(post.dict())   #convert pydantic type to dictionary type
 #     print(my_post)
 #     return {"Response": "Post uploaded"}
+@router.get("/getPost",response_model=List[schemas.response])
+def get_your_post(db: Session=Depends(get_db),user:int=Depends(oauth.get_the_user)):
+    post=db.query(model.Post).filter(model.Post.owner_id==user.id).all()
+    if post is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Check your credentials")
+    # cursor.execute("SELECT * from posts") #to write a single line command we use "", but to write a multiple line command we use """ """"
+    # posts=cursor.fetchall()
+    return(post)
 @router.post("/posts",status_code=status.HTTP_201_CREATED,response_model=schemas.response)
 def create(post:schemas.postCreate,db:Session=Depends(get_db),user:int=Depends(oauth.get_the_user)):
     # cursor.execute("""Insert into posts (title,content, published) values (%s,%s,%s) returning *""",
     #                                         (post.title, post.content, post.published))   #prevents from sql injection if the user puts some command as title
     # new_post=cursor.fetchone()      #returning the last row because returning is used in the previous line. if returing is not used then it will return no result to fetch
     # conn.commit()         #ADDS INTO THE POSTGRESQL DATABASE 
-    print (user)
-    new_post=model.Post(**post.dict())
+    # print (user)
+    new_post=model.Post(owner_id=user.id, **post.dict())
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
@@ -80,18 +88,22 @@ def delete(id:int,db:Session=Depends(get_db),user:int=Depends(oauth.get_the_user
     if del_post.first() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such post")
     # my_post.pop(idx)
+    if del_post.first().owner_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail= "You are not allowed to access this post")
     del_post.delete()
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.put("/posts/{id}")
-def update(id:int, post:schemas.postCreate,db:Session=Depends(get_db),response_model=schemas.response,user:int=Depends(oauth.get_the_user)):
+def update(id:int, post:schemas.postCreate, db:Session=Depends(get_db), response_model=schemas.response, user:int=Depends(oauth.get_the_user)):
     # cursor.execute (("UPDATE posts SET title=%s,content=%s , published=%s WHERE id=%s returning*"),(post.title,post.content,post.published,(str(id))) )
     # updated_post=cursor.fetchone()
     # conn.commit()
     updated_post=db.query(model.Post).filter(model.Post.id==id)
     if updated_post.first is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No such id exists")
+    if updated_post.first().owner_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail= "You are not allowed to access this post")
     updated_post.update(updated_post.dict())
     db.commit()
     ## post_dict=post.dict()

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
+
 #specifies post fields
 class Post(BaseModel):
     title:str
@@ -11,8 +12,15 @@ class Post(BaseModel):
 class postCreate(Post):
     pass
 
+class createResponse(BaseModel):
+    id:int
+    email:EmailStr
+    created_at:datetime
+
 class response(Post):
     id:int
+    owner_id:int
+    owner:createResponse
 
     class Config:    #converts sqlalchemy model to dict
         from_attributes=True
@@ -24,10 +32,7 @@ class userCreate(BaseModel):
     email:EmailStr
     password:str
 
-class createResponse(BaseModel):
-    id:int
-    email:EmailStr
-    created_at:datetime
+
 
 class userLogin(BaseModel):
     email:EmailStr 
