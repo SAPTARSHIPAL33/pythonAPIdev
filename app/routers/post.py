@@ -16,7 +16,7 @@ def root():       #async is totally optional but it is used where to handle mult
 #this is the feed of social media
 @router.get("/posts",response_model=List[schemas.response])
 def feed(db: Session=Depends(get_db),user:int=Depends(oauth.get_the_user),limit:int=10,skip:int=0, search:Optional[str]=""):
-    post=db.query(model.Post).filter(model.Post.title.contains(search)).limit(limit).offset(skip).all()
+    post=db.query(model.Post).filter(model.Post.content.contains(search)).limit(limit).offset(skip).all()
     # cursor.execute("SELECT * from posts") #to write a single line command we use "", but to write a multiple line command we use """ """"
     # posts=cursor.fetchall()
     return(post)
